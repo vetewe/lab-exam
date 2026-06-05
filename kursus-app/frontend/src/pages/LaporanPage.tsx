@@ -12,16 +12,11 @@ import {
   StatusBadge,
   Th,
 } from "../components/ui";
-import {
-  IconCalendar,
-  IconPrinter,
-  IconTag,
-  IconTrendingUp,
-  IconWallet,
-} from "../components/icons";
+import { IconCalendar, IconPrinter, IconTag, IconTrendingUp, IconWallet } from "../components/icons";
 import Modal from "../components/Modal";
 import { usePagination } from "../hooks/usePagination";
 import { formatRupiah, formatTanggal } from "../utils/format";
+import { printDocument, esc } from "../utils/print";
 import type {
   LaporanDetailPeserta,
   LaporanPembayaranItem,
@@ -42,7 +37,6 @@ const BULAN = [
   "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ];
 
-// Tahun pilihan: 3 tahun ke belakang dari 2026 (tahun aplikasi).
 const TAHUN_SEKARANG = 2026;
 const TAHUN_OPSI = [TAHUN_SEKARANG, TAHUN_SEKARANG - 1, TAHUN_SEKARANG - 2];
 
@@ -65,7 +59,7 @@ function periodeLabel(p: Periode): string {
   return `${BULAN[Number(p.bulan) - 1]} ${p.tahun}`;
 }
 
-// ─── Toolbar filter periode (dipakai bersama semua tab) ──
+// ─── Toolbar filter periode ──────────────────────────────
 function FilterPeriode({
   periode,
   onChange,
@@ -114,48 +108,26 @@ export default function LaporanPage() {
   const [periode, setPeriode] = useState<Periode>({ bulan: "", tahun: "" });
 
   return (
-    <div className="print-area">
-      <div className="no-print">
-        <PageHeader
-          title="Laporan"
-          subtitle="Laporan peserta, pembayaran, dan pendapatan lembaga"
-          action={
-            <Button
-              variant="secondary"
-              onClick={() => window.print()}
-              icon={<IconPrinter className="h-4 w-4" />}
+    <div>
+      <PageHeader title="Laporan" subtitle="Laporan peserta, pembayaran, dan pendapatan lembaga" />
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-card">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                tab === t.key
+                  ? "bg-brand-600 text-white shadow-sm"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+              }`}
             >
-              Cetak / PDF
-            </Button>
-          }
-        />
-
-        {/* Tab navigation + filter periode */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-card">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  tab === t.key
-                    ? "bg-brand-600 text-white shadow-sm"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <FilterPeriode periode={periode} onChange={setPeriode} />
+              {t.label}
+            </button>
+          ))}
         </div>
-      </div>
-
-      {/* Kop cetak — hanya muncul di PDF */}
-      <div className="print-only mb-4">
-        <h1 className="text-xl font-bold">BOOTS — Laporan {TABS.find((t) => t.key === tab)?.label}</h1>
-        <p className="text-sm">Periode: {periodeLabel(periode)}</p>
-        <hr className="my-2" />
+        <FilterPeriode periode={periode} onChange={setPeriode} />
       </div>
 
       {tab === "peserta" && <TabPeserta periode={periode} />}
@@ -182,11 +154,50 @@ function TabPeserta({ periode }: { periode: Periode }) {
 
   const pg = usePagination(data, 8);
 
+  function cetak() {
+    const rows = data
+      .flatMap((item) =>
+        item.program.length === 0
+          ? [
+              `<tr><td>${esc(item.peserta.nama)}</td><td colspan="3" class="muted">Belum mendaftar program</td></tr>`,
+            ]
+          : item.program.map(
+              (pr, idx) =>
+                `<tr>${
+                  idx === 0
+                    ? `<td rowspan="${item.program.length}"><strong>${esc(item.peserta.nama)}</strong></td>`
+                    : ""
+                }<td>${esc(pr.namaProgram)}</td><td>${esc(formatTanggal(pr.tanggalDaftar))}</td><td>${esc(pr.status)}</td></tr>`
+            )
+      )
+      .join("");
+
+    printDocument({
+      title: "Laporan Daftar Peserta & Program",
+      subtitle: `Periode: ${periodeLabel(periode)}`,
+      bodyHtml: `<table>
+        <thead><tr><th>Nama Peserta</th><th>Program yang Diikuti</th><th>Tanggal Daftar</th><th>Status</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4" class="muted">Tidak ada data.</td></tr>'}</tbody>
+      </table>`,
+    });
+  }
+
   if (loading) return <Spinner />;
   if (error) return <Alert>{error}</Alert>;
 
   return (
     <Card>
+      <div className="flex justify-end border-b border-slate-100 p-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={cetak}
+          disabled={data.length === 0}
+          icon={<IconPrinter className="h-3.5 w-3.5" />}
+        >
+          Cetak / PDF
+        </Button>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50/80">
@@ -233,16 +244,14 @@ function TabPeserta({ periode }: { periode: Periode }) {
       {pg.total === 0 ? (
         <EmptyState message="Tidak ada data untuk periode ini." />
       ) : (
-        <div className="no-print">
-          <Pagination
-            page={pg.page}
-            totalPages={pg.totalPages}
-            from={pg.from}
-            to={pg.to}
-            total={pg.total}
-            onPageChange={pg.setPage}
-          />
-        </div>
+        <Pagination
+          page={pg.page}
+          totalPages={pg.totalPages}
+          from={pg.from}
+          to={pg.to}
+          total={pg.total}
+          onPageChange={pg.setPage}
+        />
       )}
     </Card>
   );
@@ -266,11 +275,40 @@ function TabPembayaran({ periode }: { periode: Periode }) {
 
   const pg = usePagination(data, 8);
 
+  function cetak() {
+    const rows = data
+      .map(
+        (item) =>
+          `<tr><td>${esc(item.peserta.nama)}</td><td class="text-center">${item.jumlahTransaksi}x</td><td class="text-right">${esc(formatRupiah(item.totalBiayaKotor))}</td><td class="text-right">- ${esc(formatRupiah(item.totalDiskon))}</td><td class="text-right">${esc(formatRupiah(item.totalAkhir))}</td><td class="text-right">${esc(formatRupiah(item.totalLunas))}</td></tr>`
+      )
+      .join("");
+
+    printDocument({
+      title: "Laporan Pembayaran per Peserta",
+      subtitle: `Periode: ${periodeLabel(periode)}`,
+      bodyHtml: `<table>
+        <thead><tr><th>Nama Peserta</th><th class="text-center">Transaksi</th><th class="text-right">Total Biaya</th><th class="text-right">Total Diskon</th><th class="text-right">Total Akhir</th><th class="text-right">Sudah Lunas</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" class="muted">Tidak ada data.</td></tr>'}</tbody>
+      </table>`,
+    });
+  }
+
   if (loading) return <Spinner />;
   if (error) return <Alert>{error}</Alert>;
 
   return (
     <Card>
+      <div className="flex justify-end border-b border-slate-100 p-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={cetak}
+          disabled={data.length === 0}
+          icon={<IconPrinter className="h-3.5 w-3.5" />}
+        >
+          Cetak / PDF
+        </Button>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50/80">
@@ -281,7 +319,7 @@ function TabPembayaran({ periode }: { periode: Periode }) {
               <Th className="text-right">Total Diskon</Th>
               <Th className="text-right">Total Akhir</Th>
               <Th className="text-right">Sudah Lunas</Th>
-              <Th className="no-print text-right">Aksi</Th>
+              <Th className="text-right">Aksi</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -301,7 +339,7 @@ function TabPembayaran({ periode }: { periode: Periode }) {
                 <td className="px-4 py-3 text-right font-medium text-emerald-600">
                   {formatRupiah(item.totalLunas)}
                 </td>
-                <td className="no-print px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right">
                   <Button
                     variant="secondary"
                     size="sm"
@@ -320,16 +358,14 @@ function TabPembayaran({ periode }: { periode: Periode }) {
       {pg.total === 0 ? (
         <EmptyState message="Tidak ada data untuk periode ini." />
       ) : (
-        <div className="no-print">
-          <Pagination
-            page={pg.page}
-            totalPages={pg.totalPages}
-            from={pg.from}
-            to={pg.to}
-            total={pg.total}
-            onPageChange={pg.setPage}
-          />
-        </div>
+        <Pagination
+          page={pg.page}
+          totalPages={pg.totalPages}
+          from={pg.from}
+          to={pg.to}
+          total={pg.total}
+          onPageChange={pg.setPage}
+        />
       )}
 
       <DetailPesertaModal pesertaId={detailId} onClose={() => setDetailId(null)} />
@@ -352,12 +388,42 @@ function TabPendapatan({ periode }: { periode: Periode }) {
       .finally(() => setLoading(false));
   }, [periode]);
 
+  function cetak() {
+    if (!data) return;
+    printDocument({
+      title: "Laporan Pendapatan Lembaga",
+      subtitle: `Periode: ${periodeLabel(periode)}`,
+      bodyHtml: `
+        <table class="summary">
+          <tbody>
+            <tr><td class="label">Jumlah Pendaftaran</td><td class="val">${data.totalPendaftaran}</td></tr>
+            <tr><td class="label">Total Pendapatan Kotor</td><td class="val">${esc(formatRupiah(data.totalPendapatanKotor))}</td></tr>
+            <tr><td class="label">Total Diskon Diberikan</td><td class="val">- ${esc(formatRupiah(data.totalDiskonDiberikan))}</td></tr>
+            <tr class="grand"><td class="label">Total Pendapatan Bersih</td><td class="val">${esc(formatRupiah(data.totalPendapatanBersih))}</td></tr>
+            <tr><td class="label">Sudah Diterima (Lunas)</td><td class="val">${esc(formatRupiah(data.totalPendapatanLunas))}</td></tr>
+            <tr><td class="label">Belum Diterima (Tertunda)</td><td class="val">${esc(formatRupiah(data.totalPendapatanTertunda))}</td></tr>
+          </tbody>
+        </table>`,
+    });
+  }
+
   if (loading) return <Spinner />;
   if (error) return <Alert>{error}</Alert>;
   if (!data) return null;
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={cetak}
+          icon={<IconPrinter className="h-3.5 w-3.5" />}
+        >
+          Cetak / PDF
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="p-6">
           <div className="flex items-center gap-3">
@@ -399,7 +465,6 @@ function TabPendapatan({ periode }: { periode: Periode }) {
         </div>
       </div>
 
-      {/* Lunas vs tertunda — inilah yang berubah saat ada pembayaran */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="border-l-4 border-l-emerald-500 p-6">
           <p className="text-sm font-medium text-slate-500">Sudah Diterima (Lunas)</p>
@@ -415,9 +480,7 @@ function TabPendapatan({ periode }: { periode: Periode }) {
           <p className="mt-2 text-2xl font-bold text-amber-600">
             {formatRupiah(data.totalPendapatanTertunda)}
           </p>
-          <p className="mt-1 text-xs text-slate-400">
-            Tagihan yang belum dibayar peserta.
-          </p>
+          <p className="mt-1 text-xs text-slate-400">Tagihan yang belum dibayar peserta.</p>
         </Card>
       </div>
     </div>
@@ -454,6 +517,49 @@ function DetailPesertaModal({
     if (pesertaId != null) load(pesertaId);
   }, [pesertaId, load]);
 
+  function cetak() {
+    if (!data) return;
+    const blokPendaftaran = data.pendaftaran
+      .map((d) => {
+        const programRows = d.program
+          .map(
+            (pr) =>
+              `<tr><td>${esc(pr.namaProgram)}</td><td class="text-right">${esc(formatRupiah(pr.biayaSatuan))}</td></tr>`
+          )
+          .join("");
+        return `<div style="margin-bottom:10px">
+          <p style="font-size:11px;color:#64748b;margin-bottom:4px">Pendaftaran #${d.id} · ${esc(formatTanggal(d.tanggalDaftar))} · Status: ${esc(d.status)} · Bayar: ${esc(d.statusPembayaran)}</p>
+          <table><tbody>${programRows}
+            <tr><td class="muted">Diskon</td><td class="text-right">- ${esc(formatRupiah(d.diskon))}</td></tr>
+            <tr><td><strong>Total</strong></td><td class="text-right"><strong>${esc(formatRupiah(d.totalAkhir))}</strong></td></tr>
+          </tbody></table>
+        </div>`;
+      })
+      .join("");
+
+    printDocument({
+      title: "Laporan Peserta",
+      subtitle: `${data.peserta.nama} — ${data.peserta.email}`,
+      bodyHtml: `
+        <div class="ident">
+          <div class="nama">${esc(data.peserta.nama)}</div>
+          <p>${esc(data.peserta.email)}</p>
+          ${data.peserta.noTelepon ? `<p>Telp: ${esc(data.peserta.noTelepon)}</p>` : ""}
+          ${data.peserta.alamat ? `<p>Alamat: ${esc(data.peserta.alamat)}</p>` : ""}
+        </div>
+        <div class="section-title">Riwayat Pendaftaran (${data.ringkasan.jumlahPendaftaran})</div>
+        ${blokPendaftaran || '<p class="muted">Belum ada pendaftaran.</p>'}
+        <div class="section-title">Ringkasan</div>
+        <table class="summary"><tbody>
+          <tr><td class="label">Total Biaya</td><td class="val">${esc(formatRupiah(data.ringkasan.totalBiaya))}</td></tr>
+          <tr><td class="label">Total Diskon</td><td class="val">- ${esc(formatRupiah(data.ringkasan.totalDiskon))}</td></tr>
+          <tr class="grand"><td class="label">Total Tagihan</td><td class="val">${esc(formatRupiah(data.ringkasan.totalAkhir))}</td></tr>
+          <tr><td class="label">Sudah Lunas</td><td class="val">${esc(formatRupiah(data.ringkasan.totalLunas))}</td></tr>
+          <tr><td class="label">Belum Dibayar</td><td class="val">${esc(formatRupiah(data.ringkasan.totalTertunda))}</td></tr>
+        </tbody></table>`,
+    });
+  }
+
   return (
     <Modal
       open={pesertaId != null}
@@ -464,11 +570,7 @@ function DetailPesertaModal({
           <Button variant="secondary" onClick={onClose}>
             Tutup
           </Button>
-          <Button
-            onClick={() => window.print()}
-            disabled={!data}
-            icon={<IconPrinter className="h-4 w-4" />}
-          >
+          <Button onClick={cetak} disabled={!data} icon={<IconPrinter className="h-4 w-4" />}>
             Cetak / PDF
           </Button>
         </>
@@ -477,25 +579,16 @@ function DetailPesertaModal({
       {loading && <Spinner />}
       {error && <Alert>{error}</Alert>}
       {data && (
-        <div className="print-area space-y-4 text-sm">
-          <div className="print-only mb-2">
-            <h1 className="text-xl font-bold">BOOTS — Laporan Peserta</h1>
-            <hr className="my-2" />
-          </div>
-
-          {/* Identitas peserta */}
+        <div className="space-y-4 text-sm">
           <div className="rounded-lg bg-slate-50 p-4">
             <p className="text-lg font-bold text-slate-900">{data.peserta.nama}</p>
             <p className="text-slate-500">{data.peserta.email}</p>
             {data.peserta.noTelepon && (
               <p className="text-slate-500">Telp: {data.peserta.noTelepon}</p>
             )}
-            {data.peserta.alamat && (
-              <p className="text-slate-500">Alamat: {data.peserta.alamat}</p>
-            )}
+            {data.peserta.alamat && <p className="text-slate-500">Alamat: {data.peserta.alamat}</p>}
           </div>
 
-          {/* Daftar pendaftaran */}
           <div>
             <p className="mb-2 font-semibold text-slate-700">
               Riwayat Pendaftaran ({data.ringkasan.jumlahPendaftaran})
@@ -531,7 +624,6 @@ function DetailPesertaModal({
             </div>
           </div>
 
-          {/* Ringkasan */}
           <div className="space-y-1 rounded-lg bg-slate-50 p-4">
             <div className="flex justify-between">
               <span className="text-slate-500">Total Biaya</span>
