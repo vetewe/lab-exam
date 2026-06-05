@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUM ────────────────────────────────────────────────
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum StatusPendaftaran {
+  AKTIF
+  SELESAI
+  DIBATALKAN
+}
+
+// ─── MODEL USER (AUTH) ───────────────────────────────────
+model User {
+  id        Int      @id @default(autoincrement())
+  nama      String
+  email     String   @unique
+  password  String
+  role      Role     @default(STAFF)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── MODEL PESERTA ───────────────────────────────────────
+model Peserta {
+  id          Int           @id @default(autoincrement())
+  nama        String
+  email       String        @unique
+  noTelepon   String
+  alamat      String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  pendaftaran Pendaftaran[]
+}
+
+// ─── MODEL PROGRAM KURSUS ────────────────────────────────
+model ProgramKursus {
+  id                Int                 @id @default(autoincrement())
+  namaProgram       String
+  deskripsi         String?
+  biaya             Float
+  durasi            String // contoh: "3 bulan", "12 minggu"
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  pendaftaranDetail PendaftaranDetail[]
+}
+
+// ─── MODEL PENDAFTARAN ───────────────────────────────────
+model Pendaftaran {
+  id            Int               @id @default(autoincrement())
+  pesertaId     Int
+  tanggalDaftar DateTime          @default(now())
+  status        StatusPendaftaran @default(AKTIF)
+  totalBiaya    Float // jumlah biaya semua kursus
+  diskon        Float             @default(0) // nominal diskon
+  totalAkhir    Float // totalBiaya - diskon
+  catatan       String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  peserta Peserta             @relation(fields: [pesertaId], references: [id])
+  detail  PendaftaranDetail[]
+}
+
+// ─── MODEL DETAIL PENDAFTARAN (relasi many-to-many) ──────
+model PendaftaranDetail {
+  id              Int   @id @default(autoincrement())
+  pendaftaranId   Int
+  programKursusId Int
+  biayaSatuan     Float // snapshot biaya saat pendaftaran
+
+  pendaftaran   Pendaftaran   @relation(fields: [pendaftaranId], references: [id], onDelete: Cascade)
+  programKursus ProgramKursus @relation(fields: [programKursusId], references: [id])
+}
