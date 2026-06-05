@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import api, { getErrorMessage } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 import {
   Alert,
   Button,
@@ -139,6 +140,7 @@ export default function LaporanPage() {
 
 // ─── Tab 1: Daftar Peserta & Program ─────────────────────
 function TabPeserta({ periode }: { periode: Periode }) {
+  const { user } = useAuth();
   const [data, setData] = useState<LaporanPesertaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -175,6 +177,7 @@ function TabPeserta({ periode }: { periode: Periode }) {
     printDocument({
       title: "Laporan Daftar Peserta & Program",
       subtitle: `Periode: ${periodeLabel(periode)}`,
+      signer: user?.nama,
       bodyHtml: `<table>
         <thead><tr><th>Nama Peserta</th><th>Program yang Diikuti</th><th>Tanggal Daftar</th><th>Status</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="4" class="muted">Tidak ada data.</td></tr>'}</tbody>

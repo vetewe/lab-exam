@@ -23,9 +23,10 @@ interface PrintOptions {
   title: string;
   subtitle?: string;
   bodyHtml: string;
+  signer?: string; // nama penanda tangan (admin)
 }
 
-export function printDocument({ title, subtitle = "", bodyHtml }: PrintOptions) {
+export function printDocument({ title, subtitle = "", bodyHtml, signer }: PrintOptions) {
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
@@ -78,6 +79,11 @@ export function printDocument({ title, subtitle = "", bodyHtml }: PrintOptions) 
   .card .lbl { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
   .card .num { font-size: 16px; font-weight: 700; color: ${BRAND_NAVY}; margin-top: 4px; }
   footer { margin-top: 28px; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; }
+  .ttd { margin-top: 32px; display: flex; justify-content: flex-end; }
+  .ttd .box { width: 230px; text-align: center; font-size: 11px; color: #475569; }
+  .ttd .box .kota { margin-bottom: 4px; }
+  .ttd .box .jabatan { margin-bottom: 56px; }
+  .ttd .box .nama { font-weight: 700; color: ${BRAND_NAVY}; border-top: 1px solid #1e293b; padding-top: 4px; }
   @page { margin: 1.6cm; }
 </style>
 </head>
@@ -97,6 +103,14 @@ export function printDocument({ title, subtitle = "", bodyHtml }: PrintOptions) 
   ${subtitle ? `<p class="periode">${esc(subtitle)}</p>` : ""}
 
   <main>${bodyHtml}</main>
+
+  <div class="ttd">
+    <div class="box">
+      <div class="kota">Mengetahui dan mengesahkan,</div>
+      <div class="jabatan">Administrator BOOTS</div>
+      <div class="nama">${esc(signer || "Administrator")}</div>
+    </div>
+  </div>
 
   <footer>
     <span>BOOTS — Sistem Manajemen Kursus</span>
