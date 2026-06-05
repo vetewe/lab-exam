@@ -262,6 +262,7 @@ function TabPeserta({ periode }: { periode: Periode }) {
 
 // ─── Tab 2: Pembayaran per Peserta ───────────────────────
 function TabPembayaran({ periode }: { periode: Periode }) {
+  const { user } = useAuth();
   const [data, setData] = useState<LaporanPembayaranItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -289,6 +290,7 @@ function TabPembayaran({ periode }: { periode: Periode }) {
     printDocument({
       title: "Laporan Pembayaran per Peserta",
       subtitle: `Periode: ${periodeLabel(periode)}`,
+      signer: user?.nama,
       bodyHtml: `<table>
         <thead><tr><th>Nama Peserta</th><th class="text-center">Transaksi</th><th class="text-right">Total Biaya</th><th class="text-right">Total Diskon</th><th class="text-right">Total Akhir</th><th class="text-right">Sudah Lunas</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="6" class="muted">Tidak ada data.</td></tr>'}</tbody>
@@ -378,6 +380,7 @@ function TabPembayaran({ periode }: { periode: Periode }) {
 
 // ─── Tab 3: Pendapatan Lembaga ───────────────────────────
 function TabPendapatan({ periode }: { periode: Periode }) {
+  const { user } = useAuth();
   const [data, setData] = useState<LaporanPendapatan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -396,6 +399,7 @@ function TabPendapatan({ periode }: { periode: Periode }) {
     printDocument({
       title: "Laporan Pendapatan Lembaga",
       subtitle: `Periode: ${periodeLabel(periode)}`,
+      signer: user?.nama,
       bodyHtml: `
         <table class="summary">
           <tbody>
@@ -501,6 +505,7 @@ function DetailPesertaModal({
   const [data, setData] = useState<LaporanDetailPeserta | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { user } = useAuth();
 
   const load = useCallback(async (id: number) => {
     setLoading(true);
@@ -543,6 +548,7 @@ function DetailPesertaModal({
     printDocument({
       title: "Laporan Peserta",
       subtitle: `${data.peserta.nama} — ${data.peserta.email}`,
+      signer: user?.nama,
       bodyHtml: `
         <div class="ident">
           <div class="nama">${esc(data.peserta.nama)}</div>
