@@ -18,7 +18,9 @@ const registerSchema = z.object({
   nama: z.string().min(1, "Nama wajib diisi"),
   email: z.string().email("Email tidak valid"),
   password: z.string().min(6, "Password minimal 6 karakter"),
-  role: z.enum(["ADMIN", "STAFF"]).optional(),
+  role: z.enum(["ADMIN", "PESERTA"]).optional(),
+  noTelepon: z.string().optional().nullable(),
+  alamat: z.string().optional().nullable(),
 });
 
 // ─── POST /auth/login ────────────────────────────────────
@@ -46,11 +48,18 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
 // ─── POST /auth/register (ADMIN only) ────────────────────
 export const register = asyncHandler(async (req: Request, res: Response) => {
-  const { nama, email, password, role } = registerSchema.parse(req.body);
+  const { nama, email, password, role, noTelepon, alamat } = registerSchema.parse(req.body);
 
   const hashed = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
-    data: { nama, email, password: hashed, role: role ?? "STAFF" },
+    data: {
+      nama,
+      email,
+      password: hashed,
+      role: role ?? "PESERTA",
+      noTelepon: noTelepon ?? null,
+      alamat: alamat ?? null,
+    },
   });
 
   res.status(201).json({
@@ -62,7 +71,15 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 export const me = asyncHandler(async (req: Request, res: Response) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
-    select: { id: true, nama: true, email: true, role: true, createdAt: true },
+    select: {
+      id: true,
+      nama: true,
+      email: true,
+      role: true,
+      noTelepon: true,
+      alamat: true,
+      createdAt: true,
+    },
   });
 
   if (!user) {

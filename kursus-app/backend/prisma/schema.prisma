@@ -10,7 +10,7 @@ datasource db {
 // ─── ENUM ────────────────────────────────────────────────
 enum Role {
   ADMIN
-  STAFF
+  PESERTA
 }
 
 enum StatusPendaftaran {
@@ -19,24 +19,25 @@ enum StatusPendaftaran {
   DIBATALKAN
 }
 
-// ─── MODEL USER (AUTH) ───────────────────────────────────
-model User {
-  id        Int      @id @default(autoincrement())
-  nama      String
-  email     String   @unique
-  password  String
-  role      Role     @default(STAFF)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum StatusPembayaran {
+  BELUM_BAYAR
+  PENDING
+  LUNAS
+  GAGAL
+  KEDALUWARSA
 }
 
-// ─── MODEL PESERTA ───────────────────────────────────────
-model Peserta {
+// ─── MODEL USER (AUTH + PESERTA) ─────────────────────────
+// Peserta kini adalah User dengan role PESERTA.
+// Field noTelepon & alamat opsional (diisi untuk peserta).
+model User {
   id          Int           @id @default(autoincrement())
   nama        String
   email       String        @unique
-  noTelepon   String
-  alamat      String
+  password    String
+  role        Role          @default(PESERTA)
+  noTelepon   String?
+  alamat      String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   pendaftaran Pendaftaran[]
@@ -56,19 +57,21 @@ model ProgramKursus {
 
 // ─── MODEL PENDAFTARAN ───────────────────────────────────
 model Pendaftaran {
-  id            Int               @id @default(autoincrement())
-  pesertaId     Int
-  tanggalDaftar DateTime          @default(now())
-  status        StatusPendaftaran @default(AKTIF)
-  totalBiaya    Float // jumlah biaya semua kursus
-  diskon        Float             @default(0) // nominal diskon
-  totalAkhir    Float // totalBiaya - diskon
-  catatan       String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id               Int               @id @default(autoincrement())
+  pesertaId        Int // referensi ke User (role PESERTA)
+  tanggalDaftar    DateTime          @default(now())
+  status           StatusPendaftaran @default(AKTIF)
+  statusPembayaran StatusPembayaran  @default(BELUM_BAYAR)
+  totalBiaya       Float // jumlah biaya semua kursus
+  diskon           Float             @default(0) // nominal diskon
+  totalAkhir       Float // totalBiaya - diskon
+  catatan          String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
-  peserta Peserta             @relation(fields: [pesertaId], references: [id])
-  detail  PendaftaranDetail[]
+  peserta    User                @relation(fields: [pesertaId], references: [id])
+  detail     PendaftaranDetail[]
+  pembayaran Pembayaran[]
 }
 
 // ─── MODEL DETAIL PENDAFTARAN (relasi many-to-many) ──────
@@ -80,4 +83,20 @@ model PendaftaranDetail {
 
   pendaftaran   Pendaftaran   @relation(fields: [pendaftaranId], references: [id], onDelete: Cascade)
   programKursus ProgramKursus @relation(fields: [programKursusId], references: [id])
+}
+
+// ─── MODEL PEMBAYARAN (Midtrans Snap) ────────────────────
+model Pembayaran {
+  id            Int              @id @default(autoincrement())
+  pendaftaranId Int
+  orderId       String           @unique // ID order yang dikirim ke Midtrans
+  jumlah        Float
+  status        StatusPembayaran @default(PENDING)
+  snapToken     String? // token Snap dari Midtrans
+  metode        String? // payment_type dari Midtrans (mis. "bank_transfer")
+  rawResponse   String? // JSON mentah dari notifikasi (untuk audit)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  pendaftaran Pendaftaran @relation(fields: [pendaftaranId], references: [id], onDelete: Cascade)
 }

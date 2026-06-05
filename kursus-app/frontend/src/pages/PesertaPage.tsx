@@ -1,11 +1,25 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import api, { getErrorMessage } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Modal from "../components/Modal";
-import { Alert, Button, Field, Spinner } from "../components/ui";
+import {
+  Alert,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  PageHeader,
+  Pagination,
+  Pill,
+  SearchInput,
+  Spinner,
+  Th,
+} from "../components/ui";
+import { IconEdit, IconPlus, IconTrash, IconUsers } from "../components/icons";
+import { usePagination } from "../hooks/usePagination";
 import type { Peserta } from "../types";
 
-const emptyForm = { nama: "", email: "", noTelepon: "", alamat: "" };
+const emptyForm = { nama: "", email: "", password: "", noTelepon: "", alamat: "" };
 
 export default function PesertaPage() {
   const { isAdmin } = useAuth();
@@ -20,6 +34,21 @@ export default function PesertaPage() {
   const [saving, setSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<Peserta | null>(null);
+
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (p) =>
+        p.nama.toLowerCase().includes(q) ||
+        p.email.toLowerCase().includes(q) ||
+        p.noTelepon.toLowerCase().includes(q)
+    );
+  }, [list, search]);
+
+  const pg = usePagination(filtered, 8);
 
   async function load() {
     setLoading(true);
@@ -47,7 +76,7 @@ export default function PesertaPage() {
 
   function openEdit(p: Peserta) {
     setEditing(p);
-    setForm({ nama: p.nama, email: p.email, noTelepon: p.noTelepon, alamat: p.alamat });
+    setForm({ nama: p.nama, email: p.email, password: "", noTelepon: p.noTelepon, alamat: p.alamat });
     setFormError("");
     setModalOpen(true);
   }
@@ -85,63 +114,96 @@ export default function PesertaPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Peserta</h2>
-          <p className="text-sm text-slate-500">Kelola data peserta kursus</p>
-        </div>
-        <Button onClick={openCreate}>+ Tambah Peserta</Button>
-      </div>
+      <PageHeader
+        title="Peserta"
+        subtitle="Kelola data peserta kursus"
+        action={
+          <Button onClick={openCreate} icon={<IconPlus className="h-4 w-4" />}>
+            Tambah Peserta
+          </Button>
+        }
+      />
 
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
+
+      <div className="mb-4 max-w-sm">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Cari nama, email, atau telepon..."
+        />
+      </div>
 
       {loading ? (
         <Spinner />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Nama</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">No. Telepon</th>
-                <th className="px-4 py-3 font-medium">Alamat</th>
-                <th className="px-4 py-3 font-medium">Pendaftaran</th>
-                <th className="px-4 py-3 text-right font-medium">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {list.length === 0 && (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50/80">
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                    Belum ada data peserta.
-                  </td>
+                  <Th>Nama</Th>
+                  <Th>Email</Th>
+                  <Th>No. Telepon</Th>
+                  <Th>Alamat</Th>
+                  <Th>Pendaftaran</Th>
+                  <Th className="text-right">Aksi</Th>
                 </tr>
-              )}
-              {list.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-800">{p.nama}</td>
-                  <td className="px-4 py-3 text-slate-600">{p.email}</td>
-                  <td className="px-4 py-3 text-slate-600">{p.noTelepon}</td>
-                  <td className="px-4 py-3 text-slate-600">{p.alamat}</td>
-                  <td className="px-4 py-3 text-slate-600">{p._count?.pendaftaran ?? 0}x</td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="secondary" onClick={() => openEdit(p)}>
-                        Edit
-                      </Button>
-                      {isAdmin && (
-                        <Button variant="danger" onClick={() => setDeleteTarget(p)}>
-                          Hapus
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pg.pageItems.map((p) => (
+                  <tr key={p.id} className="transition hover:bg-slate-50/70">
+                    <td className="px-4 py-3 font-medium text-slate-800">{p.nama}</td>
+                    <td className="px-4 py-3 text-slate-600">{p.email}</td>
+                    <td className="px-4 py-3 text-slate-600">{p.noTelepon}</td>
+                    <td className="max-w-xs truncate px-4 py-3 text-slate-600">{p.alamat}</td>
+                    <td className="px-4 py-3">
+                      <Pill>{p._count?.pendaftaran ?? 0}x</Pill>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => openEdit(p)}
+                          icon={<IconEdit className="h-3.5 w-3.5" />}
+                        >
+                          Edit
                         </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                        {isAdmin && (
+                          <Button
+                            variant="subtle"
+                            size="sm"
+                            onClick={() => setDeleteTarget(p)}
+                            icon={<IconTrash className="h-3.5 w-3.5" />}
+                          >
+                            Hapus
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {pg.total === 0 ? (
+            <EmptyState
+              icon={<IconUsers className="h-6 w-6" />}
+              message={search ? "Tidak ada peserta yang cocok." : "Belum ada data peserta."}
+            />
+          ) : (
+            <Pagination
+              page={pg.page}
+              totalPages={pg.totalPages}
+              from={pg.from}
+              to={pg.to}
+              total={pg.total}
+              onPageChange={pg.setPage}
+            />
+          )}
+        </Card>
       )}
 
       {/* ─── Modal Tambah/Edit ─── */}
@@ -169,11 +231,20 @@ export default function PesertaPage() {
             required
           />
           <Field
-            label="Email"
+            label="Email (untuk login peserta)"
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             required
+          />
+          <Field
+            label={editing ? "Password (kosongkan jika tidak diubah)" : "Password"}
+            type="password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            placeholder="Minimal 6 karakter"
+            hint={editing ? "Isi hanya jika ingin mengganti password peserta." : undefined}
+            required={!editing}
           />
           <Field
             label="No. Telepon"

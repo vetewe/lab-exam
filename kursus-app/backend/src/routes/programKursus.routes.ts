@@ -10,12 +10,13 @@ import { authenticate, authorize } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.use(authenticate);
+// Program kursus hanya dikelola ADMIN.
+router.use(authenticate, authorize("ADMIN"));
 
 router.get("/", getAllProgram);
 router.get("/:id", getProgramById);
-router.post("/", authorize("ADMIN"), createProgram);
-router.put("/:id", authorize("ADMIN"), updateProgram);
-router.delete("/:id", authorize("ADMIN"), deleteProgram);
+router.post("/", createProgram);
+router.put("/:id", updateProgram);
+router.delete("/:id", deleteProgram);
 
 export default router;

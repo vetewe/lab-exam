@@ -10,12 +10,13 @@ import { authenticate, authorize } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.use(authenticate); // semua endpoint peserta wajib login
+// Manajemen peserta hanya untuk ADMIN.
+router.use(authenticate, authorize("ADMIN"));
 
 router.get("/", getAllPeserta);
 router.get("/:id", getPesertaById);
 router.post("/", createPeserta);
 router.put("/:id", updatePeserta);
-router.delete("/:id", authorize("ADMIN"), deletePeserta);
+router.delete("/:id", deletePeserta);
 
 export default router;

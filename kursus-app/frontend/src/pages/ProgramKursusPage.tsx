@@ -1,8 +1,22 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import api, { getErrorMessage } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Modal from "../components/Modal";
-import { Alert, Button, Field, Spinner } from "../components/ui";
+import {
+  Alert,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  PageHeader,
+  Pagination,
+  Pill,
+  SearchInput,
+  Spinner,
+  Th,
+} from "../components/ui";
+import { IconBook, IconEdit, IconPlus, IconTrash } from "../components/icons";
+import { usePagination } from "../hooks/usePagination";
 import { formatRupiah } from "../utils/format";
 import type { ProgramKursus } from "../types";
 
@@ -21,6 +35,21 @@ export default function ProgramKursusPage() {
   const [saving, setSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<ProgramKursus | null>(null);
+
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (p) =>
+        p.namaProgram.toLowerCase().includes(q) ||
+        (p.deskripsi ?? "").toLowerCase().includes(q) ||
+        p.durasi.toLowerCase().includes(q)
+    );
+  }, [list, search]);
+
+  const pg = usePagination(filtered, 8);
 
   async function load() {
     setLoading(true);
@@ -97,65 +126,100 @@ export default function ProgramKursusPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Program Kursus</h2>
-          <p className="text-sm text-slate-500">Kelola daftar program kursus</p>
-        </div>
-        {isAdmin && <Button onClick={openCreate}>+ Tambah Program</Button>}
-      </div>
+      <PageHeader
+        title="Program Kursus"
+        subtitle="Kelola daftar program kursus"
+        action={
+          isAdmin ? (
+            <Button onClick={openCreate} icon={<IconPlus className="h-4 w-4" />}>
+              Tambah Program
+            </Button>
+          ) : undefined
+        }
+      />
 
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
+
+      <div className="mb-4 max-w-sm">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Cari nama program atau durasi..."
+        />
+      </div>
 
       {loading ? (
         <Spinner />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Nama Program</th>
-                <th className="px-4 py-3 font-medium">Deskripsi</th>
-                <th className="px-4 py-3 font-medium">Durasi</th>
-                <th className="px-4 py-3 text-right font-medium">Biaya</th>
-                {isAdmin && <th className="px-4 py-3 text-right font-medium">Aksi</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {list.length === 0 && (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50/80">
                 <tr>
-                  <td colSpan={isAdmin ? 5 : 4} className="px-4 py-8 text-center text-slate-400">
-                    Belum ada program kursus.
-                  </td>
+                  <Th>Nama Program</Th>
+                  <Th>Deskripsi</Th>
+                  <Th>Durasi</Th>
+                  <Th className="text-right">Biaya</Th>
+                  {isAdmin && <Th className="text-right">Aksi</Th>}
                 </tr>
-              )}
-              {list.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-800">{p.namaProgram}</td>
-                  <td className="max-w-xs px-4 py-3 text-slate-600">
-                    {p.deskripsi || <span className="text-slate-400">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{p.durasi}</td>
-                  <td className="px-4 py-3 text-right font-medium text-slate-800">
-                    {formatRupiah(p.biaya)}
-                  </td>
-                  {isAdmin && (
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="secondary" onClick={() => openEdit(p)}>
-                          Edit
-                        </Button>
-                        <Button variant="danger" onClick={() => setDeleteTarget(p)}>
-                          Hapus
-                        </Button>
-                      </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pg.pageItems.map((p) => (
+                  <tr key={p.id} className="transition hover:bg-slate-50/70">
+                    <td className="px-4 py-3 font-medium text-slate-800">{p.namaProgram}</td>
+                    <td className="max-w-xs truncate px-4 py-3 text-slate-600">
+                      {p.deskripsi || <span className="text-slate-400">—</span>}
                     </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    <td className="px-4 py-3">
+                      <Pill>{p.durasi}</Pill>
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                      {formatRupiah(p.biaya)}
+                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => openEdit(p)}
+                            icon={<IconEdit className="h-3.5 w-3.5" />}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="subtle"
+                            size="sm"
+                            onClick={() => setDeleteTarget(p)}
+                            icon={<IconTrash className="h-3.5 w-3.5" />}
+                          >
+                            Hapus
+                          </Button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {pg.total === 0 ? (
+            <EmptyState
+              icon={<IconBook className="h-6 w-6" />}
+              message={search ? "Tidak ada program yang cocok." : "Belum ada program kursus."}
+            />
+          ) : (
+            <Pagination
+              page={pg.page}
+              totalPages={pg.totalPages}
+              from={pg.from}
+              to={pg.to}
+              total={pg.total}
+              onPageChange={pg.setPage}
+            />
+          )}
+        </Card>
       )}
 
       {/* ─── Modal Tambah/Edit ─── */}

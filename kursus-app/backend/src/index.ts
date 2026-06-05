@@ -7,6 +7,7 @@ import pesertaRoutes from "./routes/peserta.routes.js";
 import programKursusRoutes from "./routes/programKursus.routes.js";
 import pendaftaranRoutes from "./routes/pendaftaran.routes.js";
 import laporanRoutes from "./routes/laporan.routes.js";
+import pembayaranRoutes from "./routes/pembayaran.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 
 const app = express();
@@ -27,6 +28,7 @@ app.use("/api/peserta", pesertaRoutes);
 app.use("/api/program-kursus", programKursusRoutes);
 app.use("/api/pendaftaran", pendaftaranRoutes);
 app.use("/api/laporan", laporanRoutes);
+app.use("/api/pembayaran", pembayaranRoutes);
 
 // ─── 404 handler ─────────────────────────────────────────
 app.use((_req, res) => {

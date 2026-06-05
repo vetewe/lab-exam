@@ -1,8 +1,22 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import api, { getErrorMessage } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Modal from "../components/Modal";
-import { Alert, Button, Spinner, StatusBadge } from "../components/ui";
+import {
+  Alert,
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  Pagination,
+  PaymentBadge,
+  SearchInput,
+  Spinner,
+  StatusBadge,
+  Th,
+} from "../components/ui";
+import { IconClipboard, IconEye, IconPlus, IconTrash } from "../components/icons";
+import { usePagination } from "../hooks/usePagination";
 import { formatRupiah, formatTanggal } from "../utils/format";
 import type {
   HasilKalkulasi,
@@ -34,6 +48,23 @@ export default function PendaftaranPage() {
   // ─── Detail & edit status ───────────────────────────────
   const [detail, setDetail] = useState<Pendaftaran | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Pendaftaran | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | StatusPendaftaran>("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return list.filter((p) => {
+      const matchStatus = !statusFilter || p.status === statusFilter;
+      const matchSearch =
+        !q ||
+        (p.peserta?.nama ?? "").toLowerCase().includes(q) ||
+        p.detail.some((d) => d.programKursus.namaProgram.toLowerCase().includes(q));
+      return matchStatus && matchSearch;
+    });
+  }, [list, search, statusFilter]);
+
+  const pg = usePagination(filtered, 8);
 
   async function load() {
     setLoading(true);
@@ -147,69 +178,121 @@ export default function PendaftaranPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Pendaftaran</h2>
-          <p className="text-sm text-slate-500">Kelola pendaftaran peserta ke program kursus</p>
-        </div>
-        <Button onClick={openForm}>+ Buat Pendaftaran</Button>
-      </div>
+      <PageHeader
+        title="Pendaftaran"
+        subtitle="Kelola pendaftaran peserta ke program kursus"
+        action={
+          <Button onClick={openForm} icon={<IconPlus className="h-4 w-4" />}>
+            Buat Pendaftaran
+          </Button>
+        }
+      />
 
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
+
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Cari peserta atau program..."
+          className="max-w-sm flex-1"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as "" | StatusPendaftaran)}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        >
+          <option value="">Semua Status</option>
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {loading ? (
         <Spinner />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Peserta</th>
-                <th className="px-4 py-3 font-medium">Program</th>
-                <th className="px-4 py-3 font-medium">Tanggal</th>
-                <th className="px-4 py-3 text-right font-medium">Total Akhir</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 text-right font-medium">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {list.length === 0 && (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50/80">
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                    Belum ada pendaftaran.
-                  </td>
+                  <Th>Peserta</Th>
+                  <Th>Program</Th>
+                  <Th>Tanggal</Th>
+                  <Th className="text-right">Total Akhir</Th>
+                  <Th>Status</Th>
+                  <Th>Pembayaran</Th>
+                  <Th className="text-right">Aksi</Th>
                 </tr>
-              )}
-              {list.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-800">{p.peserta?.nama}</td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {p.detail.map((d) => d.programKursus.namaProgram).join(", ")}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{formatTanggal(p.tanggalDaftar)}</td>
-                  <td className="px-4 py-3 text-right font-medium text-slate-800">
-                    {formatRupiah(p.totalAkhir)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={p.status} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="secondary" onClick={() => setDetail(p)}>
-                        Detail
-                      </Button>
-                      {isAdmin && (
-                        <Button variant="danger" onClick={() => setDeleteTarget(p)}>
-                          Batalkan
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pg.pageItems.map((p) => (
+                  <tr key={p.id} className="transition hover:bg-slate-50/70">
+                    <td className="px-4 py-3 font-medium text-slate-800">{p.peserta?.nama}</td>
+                    <td className="max-w-xs truncate px-4 py-3 text-slate-600">
+                      {p.detail.map((d) => d.programKursus.namaProgram).join(", ")}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{formatTanggal(p.tanggalDaftar)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                      {formatRupiah(p.totalAkhir)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={p.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <PaymentBadge status={p.statusPembayaran} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setDetail(p)}
+                          icon={<IconEye className="h-3.5 w-3.5" />}
+                        >
+                          Detail
                         </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                        {isAdmin && (
+                          <Button
+                            variant="subtle"
+                            size="sm"
+                            onClick={() => setDeleteTarget(p)}
+                            icon={<IconTrash className="h-3.5 w-3.5" />}
+                          >
+                            Batalkan
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {pg.total === 0 ? (
+            <EmptyState
+              icon={<IconClipboard className="h-6 w-6" />}
+              message={
+                search || statusFilter
+                  ? "Tidak ada pendaftaran yang cocok."
+                  : "Belum ada pendaftaran."
+              }
+            />
+          ) : (
+            <Pagination
+              page={pg.page}
+              totalPages={pg.totalPages}
+              from={pg.from}
+              to={pg.to}
+              total={pg.total}
+              onPageChange={pg.setPage}
+            />
+          )}
+        </Card>
       )}
 
       {/* ─── Form Buat Pendaftaran ─── */}
@@ -331,6 +414,10 @@ export default function PendaftaranPage() {
             <div className="flex justify-between">
               <span className="text-slate-500">Tanggal Daftar</span>
               <span className="text-slate-700">{formatTanggal(detail.tanggalDaftar)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Status Pembayaran</span>
+              <PaymentBadge status={detail.statusPembayaran} />
             </div>
 
             <div>

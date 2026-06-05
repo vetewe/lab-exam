@@ -53,12 +53,18 @@ export const previewPendaftaran = asyncHandler(async (req: Request, res: Respons
 });
 
 // ─── GET /pendaftaran ────────────────────────────────────
-export const getAllPendaftaran = asyncHandler(async (_req: Request, res: Response) => {
+// Admin melihat semua. Peserta hanya melihat miliknya sendiri.
+export const getAllPendaftaran = asyncHandler(async (req: Request, res: Response) => {
+  const user = req.user!;
+  const where = user.role === "PESERTA" ? { pesertaId: user.id } : {};
+
   const pendaftaran = await prisma.pendaftaran.findMany({
+    where,
     orderBy: { tanggalDaftar: "desc" },
     include: {
       peserta: { select: { id: true, nama: true, email: true } },
       detail: { include: { programKursus: true } },
+      pembayaran: { orderBy: { createdAt: "desc" } },
     },
   });
   res.json({ data: pendaftaran });
@@ -67,16 +73,22 @@ export const getAllPendaftaran = asyncHandler(async (_req: Request, res: Respons
 // ─── GET /pendaftaran/:id ────────────────────────────────
 export const getPendaftaranById = asyncHandler(async (req: Request, res: Response) => {
   const id = Number(req.params.id);
+  const user = req.user!;
   const pendaftaran = await prisma.pendaftaran.findUnique({
     where: { id },
     include: {
-      peserta: true,
+      peserta: { select: { id: true, nama: true, email: true, noTelepon: true, alamat: true } },
       detail: { include: { programKursus: true } },
+      pembayaran: { orderBy: { createdAt: "desc" } },
     },
   });
 
   if (!pendaftaran) {
     return res.status(404).json({ message: "Pendaftaran tidak ditemukan." });
+  }
+  // Peserta tidak boleh mengintip pendaftaran milik orang lain.
+  if (user.role === "PESERTA" && pendaftaran.pesertaId !== user.id) {
+    return res.status(403).json({ message: "Akses ditolak." });
   }
   res.json({ data: pendaftaran });
 });
@@ -85,7 +97,7 @@ export const getPendaftaranById = asyncHandler(async (req: Request, res: Respons
 export const createPendaftaran = asyncHandler(async (req: Request, res: Response) => {
   const { pesertaId, programKursusIds, catatan } = createSchema.parse(req.body);
 
-  const peserta = await prisma.peserta.findUnique({ where: { id: pesertaId } });
+  const peserta = await prisma.user.findFirst({ where: { id: pesertaId, role: "PESERTA" } });
   if (!peserta) {
     return res.status(404).json({ message: "Peserta tidak ditemukan." });
   }
